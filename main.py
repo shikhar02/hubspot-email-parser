@@ -1,6 +1,6 @@
 import re
 
-# Mock dataset simulating HubSpot email response
+# === MOCK EMAIL DATA ===
 mock_email_response = {
     "results": [
         {
@@ -17,16 +17,53 @@ mock_email_response = {
     ]
 }
 
-# Script to extract quote numbers
+# === MOCK DEAL DATA ===
+mock_deals = [
+    {
+        "id": "deal_001",
+        "properties": {
+            "dealname": "Client Expansion Deal",
+            "quote_number": "56789",
+            "amount": "$15,000",
+            "dealstage": "Scheduled"
+        }
+    },
+    {
+        "id": "deal_002",
+        "properties": {
+            "dealname": "Backup Deal",
+            "quote_number": "11111",
+            "amount": "$5,000",
+            "dealstage": "Prospecting"
+        }
+    }
+]
+
+# === PROCESS EMAILS ===
 for email in mock_email_response["results"]:
     subject = email["properties"].get("subject", "")
     match = re.search(r"QUOTE#(\d+)", subject)
+    
     if match:
         quote_number = match.group(1)
-        print(f"Email ID: {email['id']}")
-        print(f"Quote number found: {quote_number}")
-        print(f"From: {email['properties']['hs_email_from_email']}")
-        print(f"Created At: {email['properties']['createdAt']}")
-        print("-" * 40)
+        print(f"✅ Quote number found: {quote_number}")
+        matched_deal = None
+        
+        # === MATCH WITH DEAL ===
+        for deal in mock_deals:
+            if deal["properties"]["quote_number"] == quote_number:
+                matched_deal = deal
+                break
+        
+        if matched_deal:
+            print("🎯 Matching deal found:")
+            print(f"Deal ID: {matched_deal['id']}")
+            print(f"Deal Name: {matched_deal['properties']['dealname']}")
+            print(f"Amount: {matched_deal['properties']['amount']}")
+            print(f"Stage: {matched_deal['properties']['dealstage']}")
+        else:
+            print("❌ No matching deal found for this quote number.")
     else:
-        print(f"No quote number found in email ID {email['id']}")
+        print("❌ No quote number found in email subject.")
+
+    print("-" * 40)
