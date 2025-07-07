@@ -1,69 +1,56 @@
 import re
+import requests
+from dotenv import load_dotenv
+import os
 
-# === MOCK EMAIL DATA ===
-mock_email_response = {
-    "results": [
-        {
-            "id": "123456789",
-            "properties": {
-                "hs_email_direction": "INCOMING",
-                "hs_email_status": "SENT",
-                "subject": "Re: QUOTE#56789 - Demo request",
-                "createdAt": "2025-06-15T15:20:00Z",
-                "hs_email_text": "Hi, please send the revised quote.",
-                "hs_email_from_email": "client@company.com"
-            }
-        }
-    ]
-}
+# Load API key from .env file
+load_dotenv()
+api_key = os.getenv("HUBSPOT_API_KEY")
 
-# === MOCK DEAL DATA ===
-mock_deals = [
-    {
-        "id": "deal_001",
-        "properties": {
-            "dealname": "Client Expansion Deal",
-            "quote_number": "56789",
-            "amount": "$15,000",
-            "dealstage": "Scheduled"
-        }
-    },
-    {
-        "id": "deal_002",
-        "properties": {
-            "dealname": "Backup Deal",
-            "quote_number": "11111",
-            "amount": "$5,000",
-            "dealstage": "Prospecting"
-        }
+if not api_key:
+    raise ValueError("API key not found. Make sure .env file has HUBSPOT_API_KEY set.")
+
+# Simulate receiving an email subject
+email_subject = "Please review quote Q#0001 for approval"
+
+# Extract quote number using regex
+match = re.search(r'Q#\d{4}', email_subject)
+if match:
+    quote_number = match.group()
+    print(f"Extracted Quote Number: {quote_number}")
+else:
+    print("No quote number found in the subject.")
+    quote_number = None
+
+# If quote number found, call HubSpot API to get deals
+if quote_number:
+    url = "https://api.hubapi.com/crm/v3/objects/deals"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    params = {
+        "properties": "dealname,hubspot_owner_id,dealstage,closedate",
+        "limit": 100
     }
-]
 
-# === PROCESS EMAILS ===
-for email in mock_email_response["results"]:
-    subject = email["properties"].get("subject", "")
-    match = re.search(r"QUOTE#(\d+)", subject)
-    
-    if match:
-        quote_number = match.group(1)
-        print(f"✅ Quote number found: {quote_number}")
-        matched_deal = None
-        
-        # === MATCH WITH DEAL ===
-        for deal in mock_deals:
-            if deal["properties"]["quote_number"] == quote_number:
-                matched_deal = deal
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        deals = response.json().get("results", [])
+
+        # Search for quote number in deal names
+        found = False
+        for deal in deals:
+            deal_name = deal.get("properties", {}).get("dealname", "")
+            if quote_number in deal_name:
+                found = True
+                print("\n✅ Match found!")
+                print(f"Quote Number: {quote_number}")
+                print(f"Deal Name: {deal_name}")
+                print(f"Deal ID: {deal.get('id')}")
+                print(f"Owner ID: {deal['properties'].get('hubspot_owner_id')}")
+                print(f"Stage: {deal['properties'].get('dealstage')}")
+                print(f"Close Date: {deal['properties'].get('closedate')}")
                 break
-        
-        if matched_deal:
-            print("🎯 Matching deal found:")
-            print(f"Deal ID: {matched_deal['id']}")
-            print(f"Deal Name: {matched_deal['properties']['dealname']}")
-            print(f"Amount: {matched_deal['properties']['amount']}")
-            print(f"Stage: {matched_deal['properties']['dealstage']}")
-        else:
-            print("❌ No matching deal found for this quote number.")
-    else:
-        print("❌ No quote number found in email subject.")
-
-    print("-" * 40)
+        if not found:
+            print("\n❌ No matching deal found with the extracted quote number.")
+    except requests.exceptions.RequestException as e:
+        print(f"\n🚨 Error calling HubSpot API: {e}")
